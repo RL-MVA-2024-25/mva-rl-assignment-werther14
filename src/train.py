@@ -5,36 +5,16 @@ import torch.optim.lr_scheduler as lr_scheduler
 import numpy as np
 import random
 from collections import deque
-import matplotlib.pyplot as plt
 from gymnasium.wrappers import TimeLimit
 from env_hiv import HIVPatient
 import os
 import time
-
+from collections import deque, namedtuple
 
 from evaluate import evaluate_HIV, evaluate_HIV_population
-
-
-import random
-from collections import deque
-import numpy as np
-
-
-
-
-
-
-import torch
-import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
-import torch.optim.lr_scheduler as lr_scheduler
-import numpy as np
-import random
-from collections import deque, namedtuple
-import matplotlib.pyplot as plt
-import os
-import time
+
+
 
 class SumTree:
     def __init__(self, capacity):
@@ -188,7 +168,7 @@ class ProjectAgent:
         self.n_actions = n_actions
         self.state_dim = state_dim
         self.gamma = 0.85
-        self.save_path = "project_agent_test.pt"
+        self.save_path = "project_agent.pt"
         
         self.epsilon = 1.0
         self.epsilon_min = 0.01
@@ -269,81 +249,5 @@ class ProjectAgent:
         self.q_network.load_state_dict(torch.load(path, map_location=self.device))
         self.model.eval()
 
-def train_episode(env, agent):
-   state, _ = env.reset()
-   episode_reward = 0.0
-   actions = {0: 0, 1: 0, 2: 0, 3: 0}
-  
-   for step in range(200):
-       action = agent.act(state, use_random=True)
-       actions[action] += 1
-       next_state, reward, done, truncated, _info = env.step(action)
-      
-       agent.replay_buffer.push(state, action, reward, next_state, done)
-       agent.train_step()
-      
-       state = next_state
-       episode_reward += reward
-      
-       if done or truncated:
-           break
-          
-   return episode_reward, actions
 
-
-
-def main():
-
-   num_episodes = 1500
-   EVAL_THRESHOLD = 3.5e10
-   SAVE_INTERVAL = 100  
-  
-   env = TimeLimit(HIVPatient(domain_randomization=True), max_episode_steps=200)
-   agent = ProjectAgent()
-   reward_history = []
-   BEST_VALIDATION_SCORE = 0.0
-   start_time = time.time()
-  
-   try:
-       for episode in range(num_episodes):
-           episode_reward, actions = train_episode(env, agent)
-           reward_history.append(episode_reward)
-          
-           agent.step_scheduler()
-           agent.update_epsilon()
-          
-           print(
-               f"Episode {episode:4d}, "
-               f"Reward: {int(episode_reward):11d}, "
-           )
-          
-           if episode_reward > EVAL_THRESHOLD:
-               validation_score = evaluate_HIV(agent=agent, nb_episode=3)
-               validation_score_dr = evaluate_HIV_population(agent=agent, nb_episode=5)
-               avg_score = (validation_score + validation_score_dr) / 2
-              
-               if avg_score > BEST_VALIDATION_SCORE:
-                   BEST_VALIDATION_SCORE = avg_score
-                   print(f"New model with validation score: {BEST_VALIDATION_SCORE:.2f}")
-                   agent.save("best_" + agent.save_path)
-              
-               print(f"Validation score: {validation_score:.2f}, Validation score DR: {validation_score_dr:.2f}")
-              
-               if validation_score > 4e10 and validation_score_dr > 2.5e10:
-                   agent.save("best_top_score_" + agent.save_path)
-                   break
-  
-   except KeyboardInterrupt:
-       print("\nTraining interrupted by user")
-  
-   finally:
-       agent.save(agent.save_path)
-      
-       elapsed_time = time.time() - start_time
-       print(f"\nTraining completed in {elapsed_time:.1f} seconds")
-       print(f"Best validation score: {BEST_VALIDATION_SCORE:.2e}")
-
-
-if __name__ == "__main__":
-   main()
 
