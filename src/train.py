@@ -246,7 +246,8 @@ class ProjectAgent:
     def load(self, path=None):
         if path is None:
             path = self.save_path
-        self.q_network.load_state_dict(torch.load(path, map_location=self.device))
+        weights = torch.load(path, map_location=self.device, weights_only=True)
+        self.q_network.load_state_dict(weights)
         self.q_network.eval()
         self.target_network.load_state_dict(self.q_network.state_dict())
         self.target_network.eval()
