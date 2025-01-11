@@ -244,7 +244,7 @@ class ProjectAgent:
         print(f"Model saved to {path}")
 
     def load(self, path=None):
-        path = ".src/project_agent.pt"
+        path = "./src/project_agent.pt"
         weights = torch.load(path, map_location=self.device, weights_only=True)
         self.q_network.load_state_dict(weights)
         self.q_network.eval()
