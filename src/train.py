@@ -243,11 +243,10 @@ class ProjectAgent:
         torch.save(self.q_network.state_dict(), path)
         print(f"Model saved to {path}")
 
-    def load(self, path=None):
-        if path is None:
-            path = self.save_path
-        self.q_network.load_state_dict(torch.load(path, map_location=self.device))
+    def load(self):
+        self.model.load_state_dict(
+            torch.load("./project_agent.pt", map_location=torch.device("cpu"))
+        )
         self.model.eval()
-
 
 
