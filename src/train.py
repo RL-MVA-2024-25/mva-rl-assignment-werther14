@@ -158,7 +158,6 @@ class ProjectAgent:
         self.save_path = "project_agent.pt"
         
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
         self.q_network = DuelingQNetwork(state_dim, n_actions).to(self.device)
         self.target_network = DuelingQNetwork(state_dim, n_actions).to(self.device)
         self.target_network.load_state_dict(self.q_network.state_dict())
