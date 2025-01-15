@@ -63,7 +63,7 @@ class SumTree:
         self.position = (self.position + 1) % self.capacity
         self.size = min(self.size + 1, self.capacity)
 
-class ReplayBuffer:
+class PrioritizedReplayBuffer:
     def __init__(self, capacity=100000, alpha=0.6, beta=0.4, beta_increment=1e-4):
         self.tree = SumTree(capacity)
         self.capacity = capacity
@@ -118,24 +118,36 @@ class ReplayBuffer:
 
 class DuelingQNetwork(nn.Module):
    def __init__(self, state_dim=6, action_dim=4):
-        super(DuelingQNetwork, self).__init__()
+       super(DuelingQNetwork, self).__init__()
 
-        self.feature = self._build_mlp(state_dim, [256, 512, 1024, 1024, 1024], activation=nn.SiLU)
-        self.value_stream = self._build_mlp(1024, [512, 256, 1], activation=nn.SiLU, output_activation=None)
-        self.advantage_stream = self._build_mlp(1024, [512, 256, action_dim], activation=nn.SiLU, output_activation=None)
+       self.feature = nn.Sequential(
+           nn.Linear(state_dim, 256),
+           nn.SiLU(),
+           nn.Linear(256, 512),
+           nn.SiLU(),
+           nn.Linear(512, 1024),
+           nn.SiLU(),
+           nn.Linear(1024, 1024),
+           nn.SiLU(),
+           nn.Linear(1024, 1024),
+           nn.SiLU(),
+       )
+       self.value_stream = nn.Sequential(
+           nn.Linear(1024, 512),
+           nn.SiLU(),
+           nn.Linear(512, 256),
+           nn.SiLU(),
+           nn.Linear(256, 1)
+       )
+       self.advantage_stream = nn.Sequential(
+           nn.Linear(1024, 512),
+           nn.SiLU(),
+           nn.Linear(512, 256),
+           nn.SiLU(),
+           nn.Linear(256, action_dim)
+       )
 
-        self.apply(self._init_weights)
-
-   def _build_mlp(self, input_dim, layer_dims, activation=nn.ReLU, output_activation=None):
-        layers = []
-        for dim in layer_dims[:-1]:
-            layers.append(nn.Linear(input_dim, dim))
-            layers.append(activation())
-            input_dim = dim
-        layers.append(nn.Linear(input_dim, layer_dims[-1]))
-        if output_activation:
-            layers.append(output_activation())
-        return nn.Sequential(*layers)
+       self.apply(self._init_weights)
 
    def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -155,9 +167,15 @@ class ProjectAgent:
     def __init__(self, state_dim=6, n_actions=4):
         self.n_actions = n_actions
         self.state_dim = state_dim
+        self.gamma = 0.85
         self.save_path = "project_agent.pt"
         
+        self.epsilon = 1.0
+        self.epsilon_min = 0.01
+        self.epsilon_decay = 0.9965 
+        
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
         self.q_network = DuelingQNetwork(state_dim, n_actions).to(self.device)
         self.target_network = DuelingQNetwork(state_dim, n_actions).to(self.device)
         self.target_network.load_state_dict(self.q_network.state_dict())
@@ -165,7 +183,7 @@ class ProjectAgent:
         self.optimizer = optim.Adam(self.q_network.parameters(), lr=1e-3, betas=(0.5, 0.999))
         self.scheduler = lr_scheduler.StepLR(self.optimizer, step_size=350, gamma=0.5)
         
-        self.replay_buffer = ReplayBuffer(capacity=60000)
+        self.replay_buffer = PrioritizedReplayBuffer(capacity=60000)
         
         self.batch_size = 1024
         self.target_update_freq = 1000
@@ -208,6 +226,7 @@ class ProjectAgent:
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.q_network.parameters(), max_norm=1.0)
         self.optimizer.step()
+        
         
         self.update_count += 1
         if self.update_count % self.target_update_freq == 0:
